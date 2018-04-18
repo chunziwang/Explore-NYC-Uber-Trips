@@ -1,0 +1,302 @@
+---
+title: "Untitled"
+author: "Chunzi Wang"
+date: "April 16 2018"
+output: html_document
+---
+-----
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(scales)
+library(tidyr)
+library(DT)
+library(ggthemes)
+```
+
+Load in Uber pickup data from 2014 April - 2014 September.
+
+```{r}
+apr <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/uber-raw-data-apr14.csv")
+may <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/uber-raw-data-may14.csv")
+jun <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/uber-raw-data-jun14.csv")
+jul <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/uber-raw-data-jul14.csv")
+aug <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/uber-raw-data-aug14.csv")
+sep <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/uber-raw-data-sep14.csv")
+```
+
+```{r}
+dim(apr)
+str(apr)
+summary(apr)
+```
+
+Comibe these 6 months of data together.
+
+```{r}
+uber_2014 <- rbind(apr,may,jun,jul,aug,sep)
+```
+
+Change Date.Time column from factor type to datetime object.
+
+```{r}
+uber_2014$Date.Time <- as.POSIXct(uber_2014$Date.Time,format="%m/%d/%Y %H:%M:%S")
+```
+
+```{r}
+summary(uber_2014)
+```
+
+Create new columns of year, month, day, day of week, hour, minute, and second.
+
+```{r}
+uber_2014$day <- factor(day(uber_2014$Date.Time))
+uber_2014$month <- factor(month(uber_2014$Date.Time, label = TRUE))
+uber_2014$year <- factor(year(uber_2014$Date.Time))
+uber_2014$dayofweek <- factor(wday(uber_2014$Date.Time, label = TRUE))
+```
+
+```{r}
+summary(uber_2014)
+```
+
+```{r}
+uber_2014$Time <- format(as.POSIXct(uber_2014$Date.Time, format = "%m/%d/%Y %H:%M:%S"), format="%H:%M:%S")
+uber_2014$hour <- factor(hour(hms(uber_2014$Time)))
+uber_2014$minute <- factor(minute(hms(uber_2014$Time)))
+uber_2014$second <- factor(second(hms(uber_2014$Time)))
+```
+
+```{r}
+summary(uber_2014)
+```
+
+## Trips every hour
+
+```{r}
+uber_2014 %>%
+  count(hour) %>%
+  ggplot(aes(x=hour,y=n,fill="pink")) +
+  geom_col(show.legend = FALSE) +
+  ggtitle("Trips Every Hour") +
+  scale_y_continuous(labels=comma) +
+  ylab("Total Number")
+```
+
+Findings:
+
++ Two peaks: morning rush hour and evening rush hour.
++ There're increasing number of trips since afternoon, and reach summit at 5pm.
++ More trips taking place in the evening than morning.
+
+```{r}
+by_hour <- uber_2014 %>%
+  group_by(hour) %>%
+  summarize(Total = n())
+
+# display an interactive table
+datatable(by_hour)
+```
+
+## Trips every hour by month
+
+```{r}
+colors <- c("#E69F00","#56B4E9","#660066","#FF6600","#0072B2","#006633","#9999CC")
+```
+
+```{r}
+uber_2014 %>%
+  count(hour,month) %>%
+  ggplot(aes(x=hour,y=n,fill=month)) +
+  geom_col() +
+  ggtitle("Trips Every Hour by Month") +
+  scale_y_continuous(labels=comma) +
+  ylab("Total Number") +
+  scale_fill_manual(values=colors)
+```
+
+Findings:
+
++ April, May, and June have similar numbers for every hour.
++ JUly and August have similar numbers for every hour. 
++ September seems to have the largest share among the six months. July and August have a larger share than April, May, and June.
+
+## Trips distribution on day of weeks
+
+```{r}
+uber_2014 %>%
+  count(dayofweek) %>%
+  ggplot(aes(x=dayofweek,y=n)) +
+  geom_col(fill="orange") +
+  scale_y_continuous(labels=comma) +
+  ylab("Total Number") +
+  geom_text(aes(label=n),vjust=1.6,color="white",position=position_dodge(0.9),size=4)
+```
+
+Thursday and Friday have the highest number of completed trips. Sunday has the lowest. Weekends don't necessarily beat weekdays here.
+
+## Trips by month day
+
+```{r}
+uber_2014 %>%
+  count(day) %>%
+  ggplot(aes(x=day,y=n,fill=n)) +
+  geom_col()
+```
+
+## Trips by month
+
+```{r}
+uber_2014 %>%
+  count(month) %>%
+  ggplot(aes(x=month,y=n,fill=month)) +
+  geom_col(show.legend = FALSE) +
+  scale_y_continuous(labels=comma) +
+  ylab("Total Number") +
+  geom_text(aes(label=n),vjust=1.6,color="white",position=position_dodge(0.9),size=4)
+```
+
+There's an increasing number of trips by month. (There's gradual increase in the number of trips from April to September.) September is the best month. 
+
+## Trips by day and month
+
+```{r}
+uber_2014 %>%
+  count(month,dayofweek) %>%
+  ggplot(aes(month, n, fill = dayofweek)) + 
+  geom_bar( stat = "identity", position = "dodge") +
+  ggtitle("Trips by Day and Month") +
+  ylab("Total Number") +
+  scale_y_continuous(labels = comma) +
+  scale_fill_manual(values=colors)
+```
+
+## Heatmap by hour and day
+
+```{r}
+uber_2014 %>%
+  count(day,hour) %>%
+  ggplot(aes(x=day,y=hour,fill=n)) +
+  geom_tile(color="white") +
+  ggtitle("Heat Map by Hour and Day")
+```
+
+It's obvious that there're two major peak hours: in the morning between 7-8am and in the afternoon and evening from 4-9pm.
+
+## Trips per base
+
+```{r}
+uber_2014 %>%
+  count(Base) %>%
+  ggplot(aes(x="",y=n,fill=Base)) +
+  geom_bar(width=1,stat="identity") +
+  coord_polar("y",start=0)
+```
+
+Base B02598, B02617, B02682 have better business performance than B02512 abd B02764.
+
+## Heatmap by logitude and latitude
+
+```{r}
+min_lat <- min(uber_2014$Lat)
+max_lat <- max(uber_2014$Lat)
+min_lon <- min(uber_2014$Lon)
+max_lon <- max(uber_2014$Lon)
+```
+
+```{r}
+min_lat
+max_lat
+min_lon
+max_lon
+```
+
+```{r}
+uber_2014 %>%
+  ggplot(aes(x=Lon,y=Lat)) +
+  geom_point(size=0.6,color="red",alpha=0.5) +
+  scale_x_continuous(limits=c(min_lon,max_lon)) +
+  scale_y_continuous(limits=c(min_lat,max_lat)) +
+  theme_map() +
+  ggtitle("NYC Map based on uber rides during 2014 (Apr-Sep)")
+```
+
+The realm is larger than the city, we'll shrink the range when plotting the heatmap based on bases.
+
+## Heatmap by base
+
+```{r}
+min_lat <- 40.5774
+max_lat <- 40.9176
+min_long <- -74.15
+max_long <- -73.7004
+```
+
+```{r}
+uber_2014 %>%
+  ggplot(aes(x=Lon, y=Lat, color = Base)) +
+  geom_point(size=1,alpha=0.5) +
+  scale_x_continuous(limits=c(min_long, max_long)) +
+  scale_y_continuous(limits=c(min_lat, max_lat)) +
+  theme_map() +
+  ggtitle("NYC map based on uber rides during 2014 (Apr-Sep) by base")
+```
+
+## Line chart to show the change in trips
+
+```{r}
+uber_2014$Date <- format(as.POSIXct(uber_2014$Date.Time, format = "%m/%d/%Y %H:%M:%S"), format="%m/%d/%Y")
+```
+
+```{r}
+date <- uber_2014 %>%
+  count(Date)
+
+head(date)
+str(date)
+```
+
+```{r}
+date$Date <- as.Date(date$Date,"%m/%d/%Y")
+colnames(date) <- c("Date","Trip")
+```
+
+```{r}
+date %>%
+  ggplot(aes(x=Date,y=Trip)) +
+  geom_line() +
+  geom_point()
+```
+
+There's a strong seasonality pattern between trips and date.
+
+
+
+
+
+
+
+
+
+Another dataset:
+
+```{r}
+uber_jan_feb <- read.csv("C:/Users/Adimn/Desktop/uber-pickups-in-new-york-city/Uber-Jan-Feb-FOIL.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
